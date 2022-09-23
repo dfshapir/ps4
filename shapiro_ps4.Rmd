@@ -13,6 +13,7 @@ library(stats)
 library(readr)
 library(stargazer)
 library(infer)
+library(data.table)
 ```
 
 ### Question 1 Background:
@@ -134,16 +135,16 @@ Here we see that the median is farther to the left (lower) than the mean. So tha
 demo1 <- demo %>%
   mutate("sd" = (GDP - mean(GDP)))
 
-# Set up my function.
+# Set up my function. I use absolute value to show the +/- aspect.
 
-deviation <- function(data){
+gdpdeviation <- function(data){
 
 initial1 <- data %>% 
-    filter(sd <= sd(GDP))
+    dplyr::filter(abs(sd) <= abs(sd(GDP)))
 initial2 <- data %>% 
-    filter(sd <= 1.96*sd(GDP))
+    dplyr::filter(abs(sd) <= 1.96*abs(sd(GDP)))
 initial3 <- data %>% 
-    filter(sd <= 3*sd(GDP))
+    dplyr::filter(abs(sd) <= 3*abs(sd(GDP)))
 
 standard <- nrow(initial1)/nrow(data)
 midstandard <- nrow(initial2)/nrow(data)
@@ -153,7 +154,7 @@ c(standard, midstandard, largestandard)
 
 }
 
-deviation(demo1)
+gdpdeviation(demo1)
 ```
 
 In a perfect normal distribution, 68% of the population falls within 1 standard deviation of the mean, while 95% falls within 1.96 standard deviations and 99.7% falls within 3 standard deviations. In this data, it's 83%, 92%, and 99.4%. The 99.4% figure is quite close, 92% is close, and 83% is relatively far away. So the data look rather different here than in a perfect normal distribution.
@@ -183,19 +184,22 @@ firstmean <- first %>%
   group_by(replicate) %>%
   nest() %>%
   mutate(mean = map(.x = data, .f = ~mean(.x$GDP, na.rm = TRUE))) %>%
-  select(-data)
+  select(-data) %>%
+  ungroup()
 
 secondmean <- second %>%
   group_by(replicate) %>%
   nest() %>%
   mutate(mean = map(.x = data, .f = ~mean(.x$GDP, na.rm = TRUE))) %>%
-  select(-data)
+  select(-data) %>%
+  ungroup()
 
 thirdmean <- third %>%
   group_by(replicate) %>%
   nest() %>%
   mutate(mean = map(.x = data, .f = ~mean(.x$GDP, na.rm = TRUE))) %>%
-  select(-data)
+  select(-data) %>%
+  ungroup()
 
 
 ```
@@ -225,7 +229,38 @@ ggplot(thirdmean, aes(x = mean)) +
   geom_histogram()
 ```
 
-```{r deviation}
+So after the histograms, we see that the higher the number of samples, the more even the distribution of means is. 
 
+Now, I want to look at the standard deviation and see how well the data approximates the normal distribution. Just looking at the graphs, they certainly look much closer to the normal distribution, because they have more data. This is due to the Central Limit Theorem. To see if this bears true in the data, I run my gdpdeviation() function that I created earlier. As we can see below, the distributions of the means do tend to get closer and closer to the normal distribution. Additionally, the means do tend to be rather close to the initial mean, which was `r mean(demo$GDP)`. We can see this graphically and in the tables.
+
+Below is my code.
+
+```{r namechange}
+
+# I have to change the names of the "mean" column for it to work in my function. 
+
+setnames(firstmean, "mean", "GDP")
+setnames(secondmean, "mean", "GDP")
+setnames(thirdmean, "mean", "GDP")
 ```
+
+
+```{r deviation}
+# Here, I will use my gdpdeviation() function. I have to create a SD column for each.
+
+firstmean1 <- firstmean %>%
+  mutate("sd" = (GDP - mean(GDP)))
+
+secondmean1 <- secondmean %>%
+  mutate("sd" = (GDP - mean(GDP)))
+
+thirdmean1 <- thirdmean %>%
+  mutate("sd" = (GDP - mean(GDP)))
+
+gdpdeviation(firstmean1)
+gdpdeviation(secondmean1)
+gdpdeviation(thirdmean1)
+```
+
+### 1g) Calculate the standard error of the mean, using the mathematical formula from lecture and using the three sampling distributions you created above. Explain what the standard error means here.
 
