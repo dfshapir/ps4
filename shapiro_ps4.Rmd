@@ -1,0 +1,231 @@
+---
+title: "Problem Set 4"
+author: "Daniel Shapiro"
+date: "9/22/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+set.seed(6800)
+library(tidyverse)
+library(stats)
+library(readr)
+library(stargazer)
+library(infer)
+```
+
+### Question 1 Background:
+
+*Download the demo.csv dataset from the course website. The dataset contains information from a sample of countries in the year 2000, taken from the Democracy Time-Series Dataset. It includes the following variables:*
+
+\begin{itemize}
+  
+\item \textbf{Nation}: country name
+\item \textbf{GDP}: GDP per capita in constant US dollars
+\item \textbf{FHouse}: Freedom House rating (a measure of the level of
+  political and civil liberties in a country, on a scale from 1.0 (most free)
+  to 7.0 (least free))
+\item \textbf{OECD}: a dummy variable indicating OECD status
+\item \textbf{regime}: a variable coded from the Freedom House rating that
+  indicates whether a country is free (1.0-2.5), partly free (2.51-5.5), or
+  not free (5.51-7.0). 
+\end{itemize}
+
+### 1a) Using stargazer(), show the summary statistics for your dataset. Briefly interpret for the GDP variable.
+
+```{r readin}
+
+# I like putting this sort of thing in a separate chunk so I don't have to run it a billion times.
+
+demo <- read.csv("demo.csv")
+```
+
+```{r stargazer, results = 'asis', type = 'latex'}
+
+# Had to put some extra things into the title brackets to get the table to show up as 
+# more than just Latex. Also put header = FALSE to suppress the initial lines.
+stargazer(demo, header = FALSE)
+```
+
+Brief interpretation of the GDP row: First, there's "N" which is just the number of observations -- 161. The "Mean" is the mean GDP per capita across all observations. The standard deviation value is relatively high, so that means that the data is spread across a rather wide area. The "Min" and "Max" columns show the lowest GDP per capita measure (463) and the highest (50,564) in the dataset. 
+
+### 1b) Produce an appropriately named and labeled plot of \textbf{GDP} (on the y-axis) against \textbf{FHouse} (on the x-axis) using the ggplot() function (including a legend). Do the following:
+
+|        1) Use a different color for data points representing different regimes (i.e. free, partly free, or not free)
+|        2) In case some see your plot in black and white, use different point types for each regime category.
+|        3) Adjust the size of the axis labels, axis titles, and title to make them more legible.
+|        4) Increase the size of your points, and use geom_jitter() to make them more legible.
+
+```{r plot}
+ggplot(demo, aes(x = FHouse, y = GDP, color = regime)) +
+  geom_point(aes(shape = regime)) +
+  labs(title = "Freedom House Rating and GDP per Capita",
+       x = "Freedom House Rating",
+       y = "GDP per Capita (USD)") +
+  theme(plot.title = element_text(size = 17),
+        axis.title = element_text(size = 14)) +
+  geom_jitter(size = 3)
+```
+
+### 1c) Calculate the conditional expectation and the conditional standard deviation of \textbf{GDP} for the three regime types, using a function that takes as an input the type of regime and returns the conditional mean and standard deviation. What do the conditional summary statistics suggest about the relationship between democracy and wealth? Briefly explain.
+
+To find the expected value of X, we can use the formula: $E[X] = \Sigma(x)P(x)$.
+
+```{r 1c}
+conditional <- function(type){
+
+setup1 <- demo %>%
+  filter(regime == "free")
+exp1 <-  mean(setup1$GDP)
+sd1 <- sd(setup1$GDP)
+
+setup2 <- demo %>%
+  filter(regime == "partly free")
+exp2 <-  mean(setup2$GDP)
+sd2 <- sd(setup2$GDP)
+
+setup3 <- demo %>%
+  filter(regime == "not free")
+exp3 <-  mean(setup3$GDP)
+sd3 <- sd(setup3$GDP)
+
+  if(type == "free"){return <- c(exp1, sd1)}
+  else if(type == "partly free"){return <- c(exp2, sd2)}
+  else(return <- c(exp3, sd3))
+  
+return
+}
+
+conditional("free")
+conditional("partly free")
+conditional("not free")
+```
+
+According to these statistics, a higher level of democracy tends to correlate with a higher expected GDP per capita. Regimes labeled "free" have a higher GDP per capita than regimes labeled "partly free," which in turn have a higher GDP per capita than regimes labeled "not free."
+
+### 1d) Using the geom_histogram() command in ggplot(), produce a density plot of GDP per capita. Overlay two vertical lines, in different colors, for the mean and the median of that variable. Annotate the graph to mark these lines informatively using geom_text() (hint: geom_text takes a dataframe as an input, so start by making a dataframe of your labels and their desired position). What does the relationship between the mean and the median, as shown on the plot, tell you about the variable GDP per capita?
+
+```{r 1d}
+xint <- mean(demo$GDP)
+medint <- median(demo$GDP)
+
+textdata <- data.frame(xint, medint)
+
+ggplot(demo, aes(x = GDP)) +
+  geom_histogram(bins = 30) +
+  geom_vline(xintercept = textdata$xint, color = "red") +
+  geom_vline(xintercept = textdata$medint, color = "blue") +
+  geom_text(data = textdata, x = xint, y = 35, label = "Mean", size = 3, angle = 90, vjust = 1.25) +
+  geom_text(data = textdata, x = medint, y = 35, label = "Median", size = 3, angle = 90, vjust = 1.25) +
+  labs(title = "Density Plot of GDP per Capita", 
+       x = "GDP per Capita",
+       y = "Density")
+```
+
+Here we see that the median is farther to the left (lower) than the mean. So that means that there are some serious outliers on the right -- on the richer side. Most countries are grouped around lower GDP per capitas, but there are a few countries that are significantly higher. 
+
+### 1e) Write a function that returns the amount of GDP data that falls within 1, 1.96, and 3 standard deviations of the mean. Compare these results with what we would expect if the data were perfectly normally distributed.
+
+```{r 1e}
+
+# Created new column for standard deviation
+
+demo1 <- demo %>%
+  mutate("sd" = (GDP - mean(GDP)))
+
+# Set up my function.
+
+deviation <- function(data){
+
+initial1 <- data %>% 
+    filter(sd <= sd(GDP))
+initial2 <- data %>% 
+    filter(sd <= 1.96*sd(GDP))
+initial3 <- data %>% 
+    filter(sd <= 3*sd(GDP))
+
+standard <- nrow(initial1)/nrow(data)
+midstandard <- nrow(initial2)/nrow(data)
+largestandard <- nrow(initial3)/nrow(data)
+
+c(standard, midstandard, largestandard)
+
+}
+
+deviation(demo1)
+```
+
+In a perfect normal distribution, 68% of the population falls within 1 standard deviation of the mean, while 95% falls within 1.96 standard deviations and 99.7% falls within 3 standard deviations. In this data, it's 83%, 92%, and 99.4%. The 99.4% figure is quite close, 92% is close, and 83% is relatively far away. So the data look rather different here than in a perfect normal distribution.
+
+### 1f) Now draw 100, 1,000, and 10,000 samples the length of the dataframe, with replacement, from the GDP data (bootstrap). Plot a histogram of the sample means (you can use the above ggplot() code or the hist() function). How well do these sampling distributions approximate the normal distribution? How close are they to the mean value of GDP? 
+
+First, I set everything up.
+
+```{r 1f setup}
+
+demonew <- demo %>% 
+  select(GDP)
+
+# Not sure if this is a popular choice, but I've used the rep_sample_n() function from
+# the infer package before for bootstrapping. It's awesome. Used it here!
+
+first <- demonew %>% rep_sample_n(size = 161, replace = TRUE, reps = 100)
+
+# replace = TRUE ensures that we are bootstrapping.
+
+second <- demonew %>% rep_sample_n(size = 161, replace = TRUE, reps = 1000)
+third <- demonew %>% rep_sample_n(size = 161, replace = TRUE, reps = 10000)
+
+# Here, I used nesting and mapping to apply the mean function to all. Love these functions!
+
+firstmean <- first %>%
+  group_by(replicate) %>%
+  nest() %>%
+  mutate(mean = map(.x = data, .f = ~mean(.x$GDP, na.rm = TRUE))) %>%
+  select(-data)
+
+secondmean <- second %>%
+  group_by(replicate) %>%
+  nest() %>%
+  mutate(mean = map(.x = data, .f = ~mean(.x$GDP, na.rm = TRUE))) %>%
+  select(-data)
+
+thirdmean <- third %>%
+  group_by(replicate) %>%
+  nest() %>%
+  mutate(mean = map(.x = data, .f = ~mean(.x$GDP, na.rm = TRUE))) %>%
+  select(-data)
+
+
+```
+
+Next, I create histograms.
+
+```{r histograms}
+
+# First, I need to set columns as numeric -- otherwise I will get errors.
+
+firstmean$mean <- as.numeric(firstmean$mean)
+secondmean$mean <- as.numeric(secondmean$mean)
+thirdmean$mean <- as.numeric(thirdmean$mean)
+
+# Now, I want to change the column names back to "GDP" so that my function will work.
+# I also need to add an "sd" column. EDIT
+
+# Now, for plots.
+
+ggplot(firstmean, aes(x = mean)) + 
+  geom_histogram()
+
+ggplot(secondmean, aes(x = mean)) + 
+  geom_histogram()
+
+ggplot(thirdmean, aes(x = mean)) +
+  geom_histogram()
+```
+
+```{r deviation}
+
+```
+
